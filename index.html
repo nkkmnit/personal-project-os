@@ -25,7 +25,7 @@
         .hide-scrollbar::-webkit-scrollbar { display: none; }
         .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
-    <!-- PWA Manifest Link (Generated dynamically or inline blob) -->
+    <!-- PWA Manifest Link -->
     <link rel="manifest" id="manifest-placeholder">
 </head>
 <body class="bg-slate-50 text-slate-800 h-full flex flex-col justify-between select-none">
@@ -52,12 +52,12 @@
     </header>
 
     <!-- Main Content View Area -->
-    <main id="app-content" class="flex-1 overflow-y-auto pb-24 p-4 max-w-2xl mx-auto w-full">
+    <main id="app-content" class="flex-1 overflow-y-auto pb-24 p-4 max-w-4xl mx-auto w-full">
         <!-- Dynamic Tabs Loaded via JS -->
     </main>
 
     <!-- Bottom Navigation Bar -->
-    <nav class="bg-white border-t border-slate-200 fixed bottom-0 left-0 right-0 z-40 shadow-lg max-w-2xl mx-auto">
+    <nav class="bg-white border-t border-slate-200 fixed bottom-0 left-0 right-0 z-40 shadow-lg max-w-4xl mx-auto">
         <div class="grid grid-cols-5 h-16 text-center text-xs font-medium text-slate-500">
             <button onclick="switchTab('home')" id="nav-home" class="flex flex-col items-center justify-center space-y-1 transition text-indigo-600">
                 <i class="fa-solid fa-house text-lg"></i>
@@ -90,9 +90,6 @@
 
     <!-- JavaScript Application Logic -->
     <script>
-        /* ==========================================================
-           1. INDEXEDDB DATABASE LAYER (LOCAL-FIRST PERSISTENCE)
-           ========================================================== */
         const DB_NAME = "PersonalProjectOS_DB";
         const DB_VERSION = 1;
         let db = null;
@@ -100,33 +97,21 @@
         function initDB() {
             return new Promise((resolve, reject) => {
                 const request = indexedDB.open(DB_NAME, DB_VERSION);
-                request.onerror = (event) => {
-                    console.error("Database error: ", event.target.error);
-                    reject(event.target.error);
-                };
+                request.onerror = (event) => reject(event.target.error);
                 request.onsuccess = (event) => {
                     db = event.target.result;
                     resolve(db);
                 };
                 request.onupgradeneeded = (event) => {
                     const database = event.target.result;
-                    if (!database.objectStoreNames.contains('projects')) {
-                        database.createObjectStore('projects', { keyPath: 'id' });
-                    }
-                    if (!database.objectStoreNames.contains('tasks')) {
-                        database.createObjectStore('tasks', { keyPath: 'id' });
-                    }
-                    if (!database.objectStoreNames.contains('logs')) {
-                        database.createObjectStore('logs', { keyPath: 'id' });
-                    }
-                    if (!database.objectStoreNames.contains('notes')) {
-                        database.createObjectStore('notes', { keyPath: 'id' });
-                    }
+                    if (!database.objectStoreNames.contains('projects')) database.createObjectStore('projects', { keyPath: 'id' });
+                    if (!database.objectStoreNames.contains('tasks')) database.createObjectStore('tasks', { keyPath: 'id' });
+                    if (!database.objectStoreNames.contains('logs')) database.createObjectStore('logs', { keyPath: 'id' });
+                    if (!database.objectStoreNames.contains('notes')) database.createObjectStore('notes', { keyPath: 'id' });
                 };
             });
         }
 
-        // Generic DB Operations
         function dbGetAll(storeName) {
             return new Promise((resolve, reject) => {
                 const transaction = db.transaction([storeName], 'readonly');
@@ -157,16 +142,8 @@
             });
         }
 
-        /* ==========================================================
-           2. APP STATE & ROUTING
-           ========================================================== */
         let currentTab = 'home';
-        let appData = {
-            projects: [],
-            tasks: [],
-            logs: [],
-            notes: []
-        };
+        let appData = { projects: [], tasks: [], logs: [], notes: [] };
         let activeProjectIdForDetail = null;
 
         async function loadAppData() {
@@ -184,7 +161,6 @@
             currentTab = tabName;
             if (projectId) activeProjectIdForDetail = projectId;
 
-            // Highlight bottom nav
             document.querySelectorAll('nav button').forEach(btn => {
                 btn.classList.remove('text-indigo-600', 'font-semibold');
                 btn.classList.add('text-slate-500');
@@ -205,45 +181,25 @@
             renderCurrentView();
         }
 
-        /* ==========================================================
-           3. UI RENDERERS (VIEWS)
-           ========================================================== */
         function renderCurrentView() {
             const container = document.getElementById('app-content');
             container.innerHTML = '';
 
-            if (currentTab === 'home') {
-                container.innerHTML = renderHomeView();
-            } else if (currentTab === 'projects') {
-                container.innerHTML = renderProjectsView();
-            } else if (currentTab === 'project-detail') {
-                container.innerHTML = renderProjectDetailView(activeProjectIdForDetail);
-            } else if (currentTab === 'tasks') {
-                container.innerHTML = renderTasksView();
-            } else if (currentTab === 'notes') {
-                container.innerHTML = renderNotesView();
-            } else if (currentTab === 'settings') {
-                container.innerHTML = renderSettingsView();
-            }
+            if (currentTab === 'home') container.innerHTML = renderHomeView();
+            else if (currentTab === 'projects') container.innerHTML = renderProjectsView();
+            else if (currentTab === 'project-detail') container.innerHTML = renderProjectDetailView(activeProjectIdForDetail);
+            else if (currentTab === 'tasks') container.innerHTML = renderTasksView();
+            else if (currentTab === 'notes') container.innerHTML = renderNotesView();
+            else if (currentTab === 'settings') container.innerHTML = renderSettingsView();
         }
 
-        // --- HOME / DASHBOARD VIEW ---
         function renderHomeView() {
             const projects = appData.projects;
             const tasks = appData.tasks;
             const todayStr = new Date().toISOString().split('T')[0];
 
-            const totalProjects = projects.length;
-            const activeProjects = projects.filter(p => p.currentStatus === 'In Progress').length;
-            const pendingTasks = tasks.filter(t => t.status !== 'Completed').length;
-            const completedTasks = tasks.filter(t => t.status === 'Completed').length;
-            const overdueTasks = tasks.filter(t => t.dueDate && t.dueDate < todayStr && t.status !== 'Completed').length;
-            const todaysTasks = tasks.filter(t => t.dueDate === todayStr && t.status !== 'Completed').length;
-            const needsUpdateProjects = projects.filter(p => p.currentStatus === 'Needs Update' || p.currentStatus === 'On Hold').length;
-
             return `
                 <div class="space-y-6">
-                    <!-- Welcome Banner -->
                     <div class="bg-gradient-to-r from-indigo-500 to-violet-600 rounded-2xl p-5 text-white shadow-lg">
                         <div class="flex justify-between items-start">
                             <div>
@@ -257,7 +213,6 @@
                         </div>
                     </div>
 
-                    <!-- Quick Action Buttons Grid -->
                     <div>
                         <h3 class="text-sm font-bold text-slate-600 mb-3 uppercase tracking-wider">Quick Actions (त्वरित कार्य)</h3>
                         <div class="grid grid-cols-3 gap-2.5">
@@ -276,96 +231,39 @@
                         </div>
                     </div>
 
-                    <!-- Metric Cards Dashboard -->
                     <div>
                         <h3 class="text-sm font-bold text-slate-600 mb-3 uppercase tracking-wider">Dashboard Overview</h3>
-                        <div class="grid grid-cols-2 gap-3">
-                            <div onclick="switchTab('projects')" class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm hover:border-indigo-300 transition cursor-pointer">
-                                <div class="flex justify-between items-center text-slate-500 mb-1">
-                                    <span class="text-xs font-medium">Total Projects</span>
-                                    <i class="fa-solid fa-folder-open text-indigo-500"></i>
-                                </div>
-                                <div class="text-2xl font-bold text-slate-800">${totalProjects}</div>
+                        <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                            <div onclick="switchTab('projects')" class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm cursor-pointer">
+                                <span class="text-xs text-slate-500 font-medium">Total Projects</span>
+                                <div class="text-2xl font-bold text-slate-800 mt-1">${projects.length}</div>
                             </div>
-                            <div onclick="switchTab('projects')" class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm hover:border-emerald-300 transition cursor-pointer">
-                                <div class="flex justify-between items-center text-slate-500 mb-1">
-                                    <span class="text-xs font-medium">Active Projects</span>
-                                    <i class="fa-solid fa-bolt text-emerald-500"></i>
-                                </div>
-                                <div class="text-2xl font-bold text-emerald-600">${activeProjects}</div>
+                            <div onclick="switchTab('projects')" class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm cursor-pointer">
+                                <span class="text-xs text-slate-500 font-medium">Active Projects</span>
+                                <div class="text-2xl font-bold text-emerald-600 mt-1">${projects.filter(p => p.currentStatus === 'In Progress').length}</div>
                             </div>
-                            <div onclick="switchTab('tasks')" class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm hover:border-blue-300 transition cursor-pointer">
-                                <div class="flex justify-between items-center text-slate-500 mb-1">
-                                    <span class="text-xs font-medium">Pending Tasks</span>
-                                    <i class="fa-solid fa-clock text-blue-500"></i>
-                                </div>
-                                <div class="text-2xl font-bold text-blue-600">${pendingTasks}</div>
+                            <div onclick="switchTab('tasks')" class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm cursor-pointer">
+                                <span class="text-xs text-slate-500 font-medium">Pending Tasks</span>
+                                <div class="text-2xl font-bold text-blue-600 mt-1">${tasks.filter(t => t.status !== 'Completed').length}</div>
                             </div>
-                            <div onclick="switchTab('tasks')" class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm hover:border-green-300 transition cursor-pointer">
-                                <div class="flex justify-between items-center text-slate-500 mb-1">
-                                    <span class="text-xs font-medium">Completed Tasks</span>
-                                    <i class="fa-solid fa-circle-check text-green-500"></i>
-                                </div>
-                                <div class="text-2xl font-bold text-green-600">${completedTasks}</div>
+                            <div onclick="switchTab('tasks')" class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm cursor-pointer">
+                                <span class="text-xs text-slate-500 font-medium">Completed Tasks</span>
+                                <div class="text-2xl font-bold text-green-600 mt-1">${tasks.filter(t => t.status === 'Completed').length}</div>
                             </div>
-                            <div onclick="switchTab('tasks')" class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm hover:border-amber-300 transition cursor-pointer">
-                                <div class="flex justify-between items-center text-slate-500 mb-1">
-                                    <span class="text-xs font-medium">Today's Tasks</span>
-                                    <i class="fa-solid fa-calendar-day text-amber-500"></i>
-                                </div>
-                                <div class="text-2xl font-bold text-amber-600">${todaysTasks}</div>
+                            <div onclick="switchTab('tasks')" class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm cursor-pointer">
+                                <span class="text-xs text-slate-500 font-medium">Today's Tasks</span>
+                                <div class="text-2xl font-bold text-amber-600 mt-1">${tasks.filter(t => t.dueDate === todayStr && t.status !== 'Completed').length}</div>
                             </div>
-                            <div onclick="switchTab('tasks')" class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm hover:border-rose-300 transition cursor-pointer">
-                                <div class="flex justify-between items-center text-slate-500 mb-1">
-                                    <span class="text-xs font-medium">Overdue Tasks</span>
-                                    <i class="fa-solid fa-triangle-exclamation text-rose-500"></i>
-                                </div>
-                                <div class="text-2xl font-bold text-rose-600">${overdueTasks}</div>
+                            <div onclick="switchTab('tasks')" class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm cursor-pointer">
+                                <span class="text-xs text-slate-500 font-medium">Overdue Tasks</span>
+                                <div class="text-2xl font-bold text-rose-600 mt-1">${tasks.filter(t => t.dueDate && t.dueDate < todayStr && t.status !== 'Completed').length}</div>
                             </div>
-                        </div>
-                    </div>
-
-                    ${needsUpdateProjects > 0 ? `
-                        <div class="bg-amber-50 border border-amber-200 p-4 rounded-xl flex items-center justify-between">
-                            <div class="flex items-center space-x-3">
-                                <i class="fa-solid fa-triangle-exclamation text-amber-600 text-xl"></i>
-                                <div>
-                                    <h4 class="text-sm font-semibold text-amber-900">${needsUpdateProjects} Projects को Update चाहिए</h4>
-                                    <p class="text-xs text-amber-700">कुछ प्रोजेक्ट्स Inactive या On Hold स्थिति में हैं।</p>
-                                </div>
-                            </div>
-                            <button onclick="switchTab('projects')" class="bg-amber-600 text-white text-xs px-3 py-1.5 rounded-lg font-medium shadow-sm">देखें</button>
-                        </div>
-                    ` : ''}
-
-                    <!-- Today's Quick Tasks Section -->
-                    <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
-                        <div class="flex justify-between items-center mb-3">
-                            <h3 class="text-sm font-bold text-slate-700">आज के मुख्य Tasks</h3>
-                            <button onclick="switchTab('tasks')" class="text-xs text-indigo-600 font-semibold hover:underline">सभी देखें</button>
-                        </div>
-                        <div class="space-y-2">
-                            ${tasks.filter(t => t.dueDate === todayStr && t.status !== 'Completed').length === 0 ? `
-                                <p class="text-xs text-slate-400 italic py-2 text-center">आज कोई Pending Task नहीं है। शानदार!</p>
-                            ` : tasks.filter(t => t.dueDate === todayStr && t.status !== 'Completed').map(t => `
-                                <div class="flex items-center justify-between p-2.5 bg-slate-50 rounded-xl border border-slate-100">
-                                    <div class="flex items-center space-x-3">
-                                        <input type="checkbox" onchange="toggleTaskStatus('${t.id}')" ${t.status === 'Completed' ? 'checked' : ''} class="w-4 h-4 text-indigo-600 rounded">
-                                        <div>
-                                            <p class="text-xs font-semibold text-slate-800">${t.title}</p>
-                                            <span class="text-[10px] text-slate-500">${t.relatedProject || 'General'}</span>
-                                        </div>
-                                    </div>
-                                    <span class="text-[10px] px-2 py-0.5 bg-rose-100 text-rose-700 rounded-full font-medium">${t.priority}</span>
-                                </div>
-                            `).join('')}
                         </div>
                     </div>
                 </div>
             `;
         }
 
-        // --- PROJECTS VIEW ---
         function renderProjectsView() {
             const projects = appData.projects;
             return `
@@ -381,35 +279,11 @@
                         </button>
                     </div>
 
-                    <!-- Search and Filters -->
-                    <div class="flex space-x-2">
-                        <div class="relative flex-1">
-                            <i class="fa-solid fa-magnifying-glass absolute left-3 top-3 text-slate-400 text-xs"></i>
-                            <input type="text" id="project-search" oninput="filterProjectsList()" placeholder="प्रोजेक्ट खोजें..." class="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                        </div>
-                        <select id="project-category-filter" onchange="filterProjectsList()" class="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                            <option value="">सभी Categories</option>
-                            <option value="Government Teaching Work">Govt Teaching</option>
-                            <option value="School Website">School Website</option>
-                            <option value="AI Chatbot">AI Chatbot</option>
-                            <option value="AI Tools">AI Tools</option>
-                            <option value="Website Development">Website Dev</option>
-                            <option value="App Development">App Dev</option>
-                            <option value="Automation">Automation</option>
-                            <option value="YouTube Automation">YouTube Auto</option>
-                            <option value="RAS Preparation">RAS Prep</option>
-                            <option value="Business Project">Business</option>
-                            <option value="Personal Project">Personal</option>
-                        </select>
-                    </div>
-
-                    <!-- Projects List Container -->
-                    <div id="projects-list-container" class="space-y-3">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         ${projects.length === 0 ? `
-                            <div class="text-center py-12 bg-white rounded-2xl border border-slate-200 p-6">
+                            <div class="col-span-full text-center py-12 bg-white rounded-2xl border border-slate-200 p-6">
                                 <i class="fa-solid fa-folder-open text-4xl text-slate-300 mb-3"></i>
                                 <h3 class="text-sm font-bold text-slate-700">कोई प्रोजेक्ट नहीं मिला</h3>
-                                <p class="text-xs text-slate-500 mt-1">शुरुआत करने के लिए ऊपर "+ नया Project" बटन दबाएं या Settings से Demo Data लोड करें।</p>
                                 <button onclick="loadDemoData()" class="mt-4 bg-indigo-50 text-indigo-600 text-xs px-4 py-2 rounded-xl font-semibold hover:bg-indigo-100 transition">Sample Projects लोड करें</button>
                             </div>
                         ` : projects.map(p => renderProjectCard(p)).join('')}
@@ -419,78 +293,42 @@
         }
 
         function renderProjectCard(p) {
-            const statusColors = {
-                'Idea': 'bg-purple-100 text-purple-700',
-                'Not Started': 'bg-slate-100 text-slate-700',
-                'In Progress': 'bg-emerald-100 text-emerald-700',
-                'On Hold': 'bg-amber-100 text-amber-700',
-                'Needs Update': 'bg-rose-100 text-rose-700',
-                'Testing': 'bg-blue-100 text-blue-700',
-                'Completed': 'bg-green-100 text-green-700',
-                'Archived': 'bg-zinc-100 text-zinc-500'
-            };
-
             return `
                 <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm hover:shadow-md transition space-y-3">
                     <div class="flex justify-between items-start">
                         <div>
-                            <span class="text-[10px] font-semibold px-2.5 py-0.5 rounded-full ${statusColors[p.currentStatus] || 'bg-slate-100 text-slate-700'}">${p.currentStatus}</span>
+                            <span class="text-[10px] font-semibold px-2.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700">${p.currentStatus}</span>
                             <h3 onclick="switchTab('project-detail', '${p.id}')" class="text-base font-bold text-slate-800 mt-1 cursor-pointer hover:text-indigo-600">${p.name}</h3>
                             <p class="text-xs text-slate-500">${p.category}</p>
                         </div>
                         <div class="flex space-x-1">
-                            <button onclick="openResumeModal('${p.id}')" class="bg-indigo-50 text-indigo-600 p-2 rounded-xl text-xs hover:bg-indigo-100 transition" title="Resume Project">
-                                <i class="fa-solid fa-play"></i>
-                            </button>
-                            <button onclick="openProjectModal('${p.id}')" class="bg-slate-50 text-slate-600 p-2 rounded-xl text-xs hover:bg-slate-100 transition" title="Edit">
-                                <i class="fa-solid fa-pen"></i>
-                            </button>
+                            <button onclick="openResumeModal('${p.id}')" class="bg-indigo-50 text-indigo-600 p-2 rounded-xl text-xs hover:bg-indigo-100" title="Resume Summary"><i class="fa-solid fa-play"></i></button>
+                            <button onclick="openProjectModal('${p.id}')" class="bg-slate-50 text-slate-600 p-2 rounded-xl text-xs hover:bg-slate-100" title="Edit"><i class="fa-solid fa-pen"></i></button>
                         </div>
                     </div>
 
-                    <p class="text-xs text-slate-600 line-clamp-2">${p.description || 'कोई विवरण उपलब्ध नहीं।'}</p>
+                    <p class="text-xs text-slate-600 line-clamp-2">${p.description || 'विवरण उपलब्ध नहीं।'}</p>
 
-                    <!-- Progress Bar -->
+                    <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-100 text-[11px] grid grid-cols-2 gap-2 text-slate-700">
+                        <div><strong>Prompt:</strong> ${p.promptTool || 'N/A'}</div>
+                        <div><strong>Code:</strong> ${p.codeTool || 'N/A'}</div>
+                        <div><strong>Host:</strong> ${p.hostPlatform || 'N/A'}</div>
+                        <div><strong>GitHub ID:</strong> ${p.githubId || 'N/A'}</div>
+                    </div>
+
                     <div>
                         <div class="flex justify-between text-[10px] text-slate-500 mb-1 font-medium">
                             <span>Progress</span>
                             <span>${p.completionPercentage || 0}%</span>
                         </div>
                         <div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                            <div class="bg-indigo-600 h-full rounded-full transition-all duration-300" style="width: ${p.completionPercentage || 0}%"></div>
-                        </div>
-                    </div>
-
-                    <div class="flex justify-between items-center pt-2 border-t border-slate-100 text-xs text-slate-500">
-                        <span><i class="fa-solid fa-tools mr-1"></i> ${p.lastTool || 'General'}</span>
-                        <div class="space-x-2">
-                            ${p.liveUrl ? `<a href="${p.liveUrl}" target="_blank" class="text-indigo-600 font-semibold hover:underline"><i class="fa-solid fa-globe mr-1"></i>Live</a>` : ''}
-                            ${p.githubUrl ? `<a href="${p.githubUrl}" target="_blank" class="text-slate-700 font-semibold hover:underline"><i class="fa-brands fa-github mr-1"></i>Code</a>` : ''}
+                            <div class="bg-indigo-600 h-full rounded-full" style="width: ${p.completionPercentage || 0}%"></div>
                         </div>
                     </div>
                 </div>
             `;
         }
 
-        function filterProjectsList() {
-            const query = document.getElementById('project-search').value.toLowerCase();
-            const category = document.getElementById('project-category-filter').value;
-            const container = document.getElementById('projects-list-container');
-
-            const filtered = appData.projects.filter(p => {
-                const matchesQuery = p.name.toLowerCase().includes(query) || (p.description && p.description.toLowerCase().includes(query));
-                const matchesCategory = category === '' || p.category === category;
-                return matchesQuery && matchesCategory;
-            });
-
-            if (filtered.length === 0) {
-                container.innerHTML = `<div class="text-center py-8 text-xs text-slate-400">कोई प्रोजेक्ट नहीं मिला।</div>`;
-            } else {
-                container.innerHTML = filtered.map(p => renderProjectCard(p)).join('');
-            }
-        }
-
-        // --- PROJECT DETAIL VIEW & DEVELOPMENT LOGS ---
         function renderProjectDetailView(projectId) {
             const project = appData.projects.find(p => p.id === projectId);
             if (!project) return `<div class="p-6 text-center">प्रोजेक्ट नहीं मिला। <button onclick="switchTab('projects')" class="text-indigo-600 underline">वापस जाएं</button></div>`;
@@ -500,21 +338,16 @@
 
             return `
                 <div class="space-y-6">
-                    <!-- Back Button -->
                     <div class="flex items-center justify-between">
                         <button onclick="switchTab('projects')" class="text-xs text-indigo-600 font-semibold flex items-center space-x-1 bg-indigo-50 px-3 py-1.5 rounded-xl">
-                            <i class="fa-solid fa-arrow-left"></i>
-                            <span>प्रोजेक्ट्स पर वापस</span>
+                            <i class="fa-solid fa-arrow-left"></i><span>प्रोजेक्ट्स पर वापस</span>
                         </button>
                         <div class="space-x-2">
-                            <button onclick="openResumeModal('${project.id}')" class="bg-indigo-600 text-white text-xs px-3 py-1.5 rounded-xl font-semibold shadow-sm">
-                                <i class="fa-solid fa-play mr-1"></i> Resume Summary
-                            </button>
+                            <button onclick="openResumeModal('${project.id}')" class="bg-indigo-600 text-white text-xs px-3 py-1.5 rounded-xl font-semibold shadow-sm"><i class="fa-solid fa-play mr-1"></i> Resume Summary</button>
                             <button onclick="openProjectModal('${project.id}')" class="bg-slate-200 text-slate-700 text-xs px-3 py-1.5 rounded-xl font-semibold">Edit</button>
                         </div>
                     </div>
 
-                    <!-- Project Header Card -->
                     <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
                         <div>
                             <span class="text-xs font-semibold px-2.5 py-1 bg-indigo-100 text-indigo-700 rounded-full">${project.category}</span>
@@ -522,64 +355,25 @@
                             <p class="text-xs text-slate-600 mt-1">${project.description || 'विवरण नहीं है।'}</p>
                         </div>
 
-                        <div class="grid grid-cols-2 gap-3 text-xs bg-slate-50 p-3 rounded-xl border border-slate-100">
-                            <div>
-                                <span class="text-slate-400 block">Status</span>
-                                <span class="font-bold text-slate-700">${project.currentStatus}</span>
-                            </div>
-                            <div>
-                                <span class="text-slate-400 block">Priority</span>
-                                <span class="font-bold text-slate-700">${project.priority || 'Medium'}</span>
-                            </div>
-                            <div>
-                                <span class="text-slate-400 block">Owner / Client</span>
-                                <span class="font-bold text-slate-700">${project.projectOwner || 'Self'}</span>
-                            </div>
-                            <div>
-                                <span class="text-slate-400 block">Target Date</span>
-                                <span class="font-bold text-slate-700">${project.targetDate || 'N/A'}</span>
-                            </div>
-                        </div>
-
-                        <div class="flex space-x-3 text-xs">
-                            ${project.liveUrl ? `<a href="${project.liveUrl}" target="_blank" class="flex-1 text-center bg-indigo-50 text-indigo-600 py-2 rounded-xl font-semibold hover:bg-indigo-100"><i class="fa-solid fa-globe mr-1"></i> Live Website</a>` : ''}
-                            ${project.githubUrl ? `<a href="${project.githubUrl}" target="_blank" class="flex-1 text-center bg-slate-100 text-slate-700 py-2 rounded-xl font-semibold hover:bg-slate-200"><i class="fa-brands fa-github mr-1"></i> GitHub Repo</a>` : ''}
+                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs bg-slate-50 p-3 rounded-xl border border-slate-100">
+                            <div><span class="text-slate-400 block">Prompt Tool</span><strong class="text-slate-700">${project.promptTool || 'N/A'}</strong></div>
+                            <div><span class="text-slate-400 block">Code Tool</span><strong class="text-slate-700">${project.codeTool || 'N/A'}</strong></div>
+                            <div><span class="text-slate-400 block">Host Platform</span><strong class="text-slate-700">${project.hostPlatform || 'N/A'}</strong></div>
+                            <div><span class="text-slate-400 block">GitHub ID</span><strong class="text-slate-700">${project.githubId || 'N/A'}</strong></div>
                         </div>
                     </div>
 
-                    <!-- Development Logs Section -->
                     <div class="space-y-3">
                         <div class="flex justify-between items-center">
-                            <div>
-                                <h3 class="text-sm font-bold text-slate-800">Development Logs & History (${projectLogs.length})</h3>
-                                <p class="text-[10px] text-slate-500">किस AI Tool ने क्या काम किया, Prompts और Files का रिकॉर्ड</p>
-                            </div>
-                            <button onclick="openLogModal('${project.id}')" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-3 py-2 rounded-xl font-semibold shadow-sm flex items-center space-x-1">
-                                <i class="fa-solid fa-plus"></i>
-                               <span>नया Log</span>
-                            </button>
+                            <h3 class="text-sm font-bold text-slate-800">Development Logs (${projectLogs.length})</h3>
+                            <button onclick="openLogModal('${project.id}')" class="bg-emerald-600 text-white text-xs px-3 py-2 rounded-xl font-semibold shadow-sm"><i class="fa-solid fa-plus"></i> नया Log</button>
                         </div>
-
                         <div class="space-y-3">
-                            ${projectLogs.length === 0 ? `
-                                <div class="bg-white p-6 rounded-2xl border border-slate-200 text-center text-xs text-slate-400">
-                                    अभी तक कोई Development Log नहीं जोड़ा गया। "नया Log" बटन से शुरुआत करें।
-                                </div>
-                            ` : projectLogs.map(l => `
-                                <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm space-y-2.5">
-                                    <div class="flex justify-between items-center text-xs">
-                                        <span class="font-bold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-full"><i class="fa-solid fa-robot mr-1"></i> ${l.toolName}</span>
-                                        <span class="text-slate-400">${l.entryDate}</span>
-                                    </div>
-                                    <div>
-                                        <h4 class="text-xs font-semibold text-slate-800">Work: ${l.workType}</h4>
-                                        <p class="text-xs text-slate-600 mt-1"><strong class="text-slate-700">Prompt:</strong> "${l.promptUsed}"</p>
-                                    </div>
-                                    <div class="text-xs bg-slate-50 p-2.5 rounded-xl border border-slate-100 space-y-1">
-                                        <p><strong class="text-slate-700">File Changed:</strong> ${l.fileChanged || 'N/A'}</p>
-                                        <p><strong class="text-slate-700">Result:</strong> ${l.currentResult || 'N/A'}</p>
-                                        <p><strong class="text-emerald-700">Next Step:</strong> ${l.nextStep || 'N/A'}</p>
-                                    </div>
+                            ${projectLogs.length === 0 ? `<div class="bg-white p-6 rounded-2xl border text-center text-xs text-slate-400">कोई Log नहीं है।</div>` : projectLogs.map(l => `
+                                <div class="bg-white rounded-2xl border p-4 shadow-sm space-y-2 text-xs">
+                                    <div class="flex justify-between font-bold text-indigo-600"><span>${l.toolName}</span><span class="text-slate-400">${l.entryDate}</span></div>
+                                    <p><strong>Prompt:</strong> ${l.promptUsed}</p>
+                                    <p><strong>Result:</strong> ${l.currentResult}</p>
                                 </div>
                             `).join('')}
                         </div>
@@ -588,43 +382,25 @@
             `;
         }
 
-        // --- TASKS VIEW ---
         function renderTasksView() {
             const tasks = appData.tasks;
             return `
                 <div class="space-y-4">
                     <div class="flex justify-between items-center">
-                        <div>
-                            <h2 class="text-lg font-bold text-slate-800">Task Management (${tasks.length})</h2>
-                            <p class="text-xs text-slate-500">सभी पेंडिंग और पूर्ण कार्य</p>
-                        </div>
-                        <button onclick="openTaskModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs px-3 py-2 rounded-xl font-semibold shadow-sm flex items-center space-x-1.5 transition">
-                            <i class="fa-solid fa-plus"></i>
-                            <span>नया Task</span>
-                        </button>
+                        <h2 class="text-lg font-bold text-slate-800">Task Management (${tasks.length})</h2>
+                        <button onclick="openTaskModal()" class="bg-indigo-600 text-white text-xs px-3 py-2 rounded-xl font-semibold shadow-sm"><i class="fa-solid fa-plus"></i> नया Task</button>
                     </div>
-
-                    <!-- Tasks List -->
                     <div class="space-y-2.5">
-                        ${tasks.length === 0 ? `
-                            <div class="text-center py-12 bg-white rounded-2xl border border-slate-200 p-6">
-                                <i class="fa-solid fa-list-check text-4xl text-slate-300 mb-3"></i>
-                                <h3 class="text-sm font-bold text-slate-700">कोई Task नहीं है</h3>
-                                <p class="text-xs text-slate-500 mt-1">नया टास्क जोड़ने के लिए ऊपर बटन दबाएं।</p>
-                            </div>
-                        ` : tasks.map(t => `
-                            <div class="bg-white p-3.5 rounded-2xl border border-slate-200 flex items-center justify-between shadow-sm">
+                        ${tasks.length === 0 ? `<div class="text-center py-12 bg-white rounded-2xl border p-6 text-xs text-slate-400">कोई Task नहीं है।</div>` : tasks.map(t => `
+                            <div class="bg-white p-3.5 rounded-2xl border flex items-center justify-between shadow-sm text-xs">
                                 <div class="flex items-center space-x-3">
                                     <input type="checkbox" onchange="toggleTaskStatus('${t.id}')" ${t.status === 'Completed' ? 'checked' : ''} class="w-5 h-5 text-indigo-600 rounded">
                                     <div>
-                                        <h4 class="text-xs font-bold text-slate-800 ${t.status === 'Completed' ? 'line-through text-slate-400' : ''}">${t.title}</h4>
+                                        <h4 class="font-bold text-slate-800 ${t.status === 'Completed' ? 'line-through text-slate-400' : ''}">${t.title}</h4>
                                         <p class="text-[10px] text-slate-500">${t.relatedProject || 'General'} • Due: ${t.dueDate || 'No Date'}</p>
                                     </div>
                                 </div>
-                                <div class="flex items-center space-x-2">
-                                    <span class="text-[10px] px-2 py-0.5 rounded-full font-medium ${t.priority === 'Urgent' ? 'bg-rose-100 text-rose-700' : 'bg-slate-100 text-slate-600'}">${t.priority}</span>
-                                    <button onclick="deleteTask('${t.id}')" class="text-slate-400 hover:text-rose-600 p-1"><i class="fa-solid fa-trash text-xs"></i></button>
-                                </div>
+                                <button onclick="deleteTask('${t.id}')" class="text-slate-400 hover:text-rose-600"><i class="fa-solid fa-trash"></i></button>
                             </div>
                         `).join('')}
                     </div>
@@ -632,39 +408,19 @@
             `;
         }
 
-        // --- NOTES VIEW ---
         function renderNotesView() {
             const notes = appData.notes;
             return `
                 <div class="space-y-4">
                     <div class="flex justify-between items-center">
-                        <div>
-                            <h2 class="text-lg font-bold text-slate-800">Quick Notes (${notes.length})</h2>
-                            <p class="text-xs text-slate-500">विचार, जरूरी लिंक्स और महत्वपूर्ण बातें</p>
-                        </div>
-                        <button onclick="openNoteModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs px-3 py-2 rounded-xl font-semibold shadow-sm flex items-center space-x-1.5 transition">
-                            <i class="fa-solid fa-plus"></i>
-                            <span>नया Note</span>
-                        </button>
+                        <h2 class="text-lg font-bold text-slate-800">Quick Notes (${notes.length})</h2>
+                        <button onclick="openNoteModal()" class="bg-indigo-600 text-white text-xs px-3 py-2 rounded-xl font-semibold shadow-sm"><i class="fa-solid fa-plus"></i> नया Note</button>
                     </div>
-
                     <div class="space-y-3">
-                        ${notes.length === 0 ? `
-                            <div class="text-center py-12 bg-white rounded-2xl border border-slate-200 p-6">
-                                <i class="fa-solid fa-note-sticky text-4xl text-slate-300 mb-3"></i>
-                                <h3 class="text-sm font-bold text-slate-700">कोई Quick Note नहीं है</h3>
-                            </div>
-                        ` : notes.map(n => `
-                            <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-2">
-                                <div class="flex justify-between items-center">
-                                    <h3 class="text-xs font-bold text-slate-800">${n.title}</h3>
-                                    <span class="text-[10px] text-slate-400">${n.date}</span>
-                                </div>
-                                <p class="text-xs text-slate-600 whitespace-pre-wrap">${n.content}</p>
-                                <div class="flex justify-between items-center pt-2 border-t border-slate-100 text-[10px] text-slate-500">
-                                    <span>Project: ${n.relatedProject || 'General'}</span>
-                                    <button onclick="deleteNote('${n.id}')" class="text-rose-600 hover:underline">Delete</button>
-                                </div>
+                        ${notes.length === 0 ? `<div class="text-center py-12 bg-white rounded-2xl border p-6 text-xs text-slate-400">कोई Note नहीं है।</div>` : notes.map(n => `
+                            <div class="bg-white p-4 rounded-2xl border shadow-sm space-y-2 text-xs">
+                                <div class="flex justify-between font-bold text-slate-800"><span>${n.title}</span><span class="text-slate-400">${n.date}</span></div>
+                                <p class="text-slate-600 whitespace-pre-wrap">${n.content}</p>
                             </div>
                         `).join('')}
                     </div>
@@ -672,98 +428,59 @@
             `;
         }
 
-        // --- SETTINGS VIEW ---
         function renderSettingsView() {
             return `
                 <div class="space-y-6">
-                    <div>
-                        <h2 class="text-lg font-bold text-slate-800">Settings & Backup</h2>
-                        <p class="text-xs text-slate-500">डेटा बैकअप, रिस्टोर और डेमो डेटा</p>
-                    </div>
-
-                    <!-- Backup & Restore Card -->
-                    <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-                        <h3 class="text-xs font-bold text-slate-700 uppercase tracking-wider">Local Backup & Restore</h3>
-                        <p class="text-xs text-slate-600">अपने सभी प्रोजेक्ट्स, टास्क और लॉग्स को सुरक्षित रखने के लिए JSON फाइल में बैकअप डाउनलोड करें।</p>
+                    <h2 class="text-lg font-bold text-slate-800">Settings & Backup</h2>
+                    <div class="bg-white p-5 rounded-2xl border shadow-sm space-y-4 text-xs">
+                        <h3 class="font-bold text-slate-700">Backup & Restore</h3>
                         <div class="flex space-x-3">
-                            <button onclick="exportJSONBackup()" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white text-xs py-2.5 rounded-xl font-semibold shadow-sm flex items-center justify-center space-x-2">
-                                <i class="fa-solid fa-download"></i>
-                                <span>Backup Download</span>
-                            </button>
-                            <label class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs py-2.5 rounded-xl font-semibold shadow-sm flex items-center justify-center space-x-2 cursor-pointer">
-                                <i class="fa-solid fa-upload"></i>
-                                <span>Restore Backup</span>
-                                <input type="file" id="restore-file-input" accept=".json" onchange="importJSONBackup(event)" class="hidden">
-                            </label>
+                            <button onclick="exportJSONBackup()" class="flex-1 bg-indigo-600 text-white py-2.5 rounded-xl font-semibold">Backup Download</button>
+                            <label class="flex-1 bg-slate-100 text-slate-700 py-2.5 rounded-xl font-semibold text-center cursor-pointer">Restore Backup<input type="file" accept=".json" onchange="importJSONBackup(event)" class="hidden"></label>
                         </div>
                     </div>
-
-                    <!-- Demo Data Card -->
-                    <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-                        <h3 class="text-xs font-bold text-slate-700 uppercase tracking-wider">Sample / Demo Data</h3>
-                        <p class="text-xs text-slate-600">यदि आप ऐप को टेस्ट करना चाहते हैं, तो कुछ सैंपल प्रोजेक्ट्स लोड कर सकते हैं।</p>
+                    <div class="bg-white p-5 rounded-2xl border shadow-sm space-y-4 text-xs">
+                        <h3 class="font-bold text-slate-700">Demo Data</h3>
                         <div class="flex space-x-3">
-                            <button onclick="loadDemoData()" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs py-2.5 rounded-xl font-semibold shadow-sm">Sample Data लोड करें</button>
-                            <button onclick="clearAllDataConfirmed()" class="flex-1 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs py-2.5 rounded-xl font-semibold">Clear All Data</button>
+                            <button onclick="loadDemoData()" class="flex-1 bg-emerald-600 text-white py-2.5 rounded-xl font-semibold">Sample Data लोड करें</button>
+                            <button onclick="clearAllDataConfirmed()" class="flex-1 bg-rose-50 text-rose-700 py-2.5 rounded-xl font-semibold">Clear All Data</button>
                         </div>
-                    </div>
-
-                    <!-- Privacy & PWA Info -->
-                    <div class="bg-slate-100 p-4 rounded-2xl border border-slate-200 text-xs text-slate-600 space-y-2">
-                        <h4 class="font-bold text-slate-700"><i class="fa-solid fa-shield-halved mr-1 text-indigo-600"></i> Privacy & Storage Note</h4>
-                        <p>इस ऐप का डेटा पूरी तरह आपके ब्राउज़र के स्थानीय IndexedDB स्टोरेज में सुरक्षित रहता है। यह किसी बाहरी सर्वर पर नहीं भेजा जाता। नियमित बैकअप लेते रहें।</p>
                     </div>
                 </div>
             `;
         }
 
-        /* ==========================================================
-           4. MODAL FORMS & PROJECT RESUME SYSTEM
-           ========================================================== */
-        
-        // --- PROJECT RESUME SYSTEM (AI COPY SUMMARY) ---
+        // --- RESUME MODAL WITH NEW FIELDS ---
         async function openResumeModal(projectId) {
             await loadAppData();
             const project = appData.projects.find(p => p.id === projectId);
             if (!project) return;
 
-            const logs = appData.logs.filter(l => l.projectId === projectId);
-            const tasks = appData.tasks.filter(t => t.relatedProject === project.name);
-
             const summaryText = `
 # PROJECT RESUME SUMMARY: ${project.name}
 - **Category:** ${project.category}
-- **Objective / Description:** ${project.description || 'N/A'}
-- **Current Status:** ${project.currentStatus} (${project.completionPercentage || 0}% Complete)
-- **Target Date:** ${project.targetDate || 'N/A'}
-- **Live URL:** ${project.liveUrl || 'N/A'}
-- **GitHub URL:** ${project.githubUrl || 'N/A'}
-
-## Development & AI Tool History:
-${logs.map(l => `- [${l.entryDate}] Tool: ${l.toolName} | Work: ${l.workType} | Prompt: "${l.promptUsed}" | Result: ${l.currentResult}`).join('\n') || 'No logs recorded.'}
-
-## Pending Tasks:
-${tasks.filter(t => t.status !== 'Completed').map(t => `- [ ] ${t.title} (Priority: ${t.priority})`).join('\n') || 'No pending tasks.'}
+- **Description:** ${project.description || 'N/A'}
+- **Status:** ${project.currentStatus} (${project.completionPercentage || 0}% Complete)
+- **Prompt Tool:** ${project.promptTool || 'N/A'}
+- **Code Tool:** ${project.codeTool || 'N/A'}
+- **Host Platform:** ${project.hostPlatform || 'N/A'}
+- **GitHub ID:** ${project.githubId || 'N/A'}
             `.trim();
 
             const container = document.getElementById('modal-container');
             container.innerHTML = `
                 <div class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-                    <div class="bg-white rounded-2xl max-w-lg w-full max-h-[85vh] flex flex-col shadow-2xl overflow-hidden">
+                    <div class="bg-white rounded-2xl max-w-lg w-full max-h-[85vh] flex flex-col shadow-2xl overflow-hidden text-xs">
                         <div class="bg-indigo-600 text-white p-4 flex justify-between items-center">
-                            <h3 class="font-bold text-sm">Resume Project: ${project.name}</h3>
+                            <h3 class="font-bold">Resume Summary: ${project.name}</h3>
                             <button onclick="closeModal()" class="text-indigo-200 hover:text-white text-lg"><i class="fa-solid fa-xmark"></i></button>
                         </div>
                         <div class="p-4 overflow-y-auto flex-1 space-y-3">
-                            <p class="text-xs text-slate-500">इस Summary को Copy करके ChatGPT, Gemini या Claude में Paste करें ताकि काम वहीं से जारी रखा जा सके:</p>
-                            <textarea id="resume-summary-text" readonly class="w-full h-64 bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-mono text-slate-700 focus:outline-none">${summaryText}</textarea>
+                            <textarea id="resume-summary-text" readonly class="w-full h-64 bg-slate-50 border rounded-xl p-3 font-mono text-slate-700">${summaryText}</textarea>
                         </div>
-                        <div class="p-4 bg-slate-50 border-t border-slate-200 flex space-x-3">
-                            <button onclick="copyResumeSummary()" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white text-xs py-2.5 rounded-xl font-semibold shadow-sm flex items-center justify-center space-x-2">
-                                <i class="fa-solid fa-copy"></i>
-                                <span>Copy Summary for AI</span>
-                            </button>
-                            <button onclick="closeModal()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs px-4 py-2.5 rounded-xl font-semibold">बंद करें</button>
+                        <div class="p-4 bg-slate-50 border-t flex space-x-3">
+                            <button onclick="copyResumeSummary()" class="flex-1 bg-indigo-600 text-white py-2.5 rounded-xl font-semibold"><i class="fa-solid fa-copy mr-1"></i> Copy Summary</button>
+                            <button onclick="closeModal()" class="bg-slate-200 text-slate-700 px-4 py-2.5 rounded-xl font-semibold">बंद करें</button>
                         </div>
                     </div>
                 </div>
@@ -774,10 +491,10 @@ ${tasks.filter(t => t.status !== 'Completed').map(t => `- [ ] ${t.title} (Priori
             const textarea = document.getElementById('resume-summary-text');
             textarea.select();
             document.execCommand('copy');
-            showToast("Summary Clipboard में Copy हो गई! अब AI चैटबॉट में पेस्ट करें।", "success");
+            showToast("Summary Clipboard में Copy हो गई!", "success");
         }
 
-        // --- PROJECT MODAL (ADD / EDIT) ---
+        // --- PROJECT MODAL WITH UPDATED FIELDS ---
         async function openProjectModal(projectId = null) {
             let project = {
                 id: 'proj_' + Date.now(),
@@ -785,12 +502,11 @@ ${tasks.filter(t => t.status !== 'Completed').map(t => `- [ ] ${t.title} (Priori
                 category: 'AI Tools',
                 description: '',
                 currentStatus: 'In Progress',
-                priority: 'Medium',
-                targetDate: '',
                 completionPercentage: 0,
-                projectOwner: 'Self',
-                liveUrl: '',
-                githubUrl: ''
+                promptTool: 'ChatGPT',
+                codeTool: 'Google Gemini',
+                hostPlatform: 'Cloudflare Pages',
+                githubId: ''
             };
 
             if (projectId) {
@@ -802,60 +518,60 @@ ${tasks.filter(t => t.status !== 'Completed').map(t => `- [ ] ${t.title} (Priori
             const container = document.getElementById('modal-container');
             container.innerHTML = `
                 <div class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-                    <div class="bg-white rounded-2xl max-w-lg w-full max-h-[85vh] flex flex-col shadow-2xl overflow-hidden">
+                    <div class="bg-white rounded-2xl max-w-lg w-full max-h-[85vh] flex flex-col shadow-2xl overflow-hidden text-xs">
                         <div class="bg-indigo-600 text-white p-4 flex justify-between items-center">
-                            <h3 class="font-bold text-sm">${projectId ? 'Edit Project' : 'नया Project बनाएं'}</h3>
+                            <h3 class="font-bold">${projectId ? 'Edit Project' : 'नया Project बनाएं'}</h3>
                             <button onclick="closeModal()" class="text-indigo-200 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
                         </div>
-                        <form id="project-form" onsubmit="saveProjectForm(event, '${project.id}')" class="p-4 overflow-y-auto flex-1 space-y-3 text-xs">
+                        <form onsubmit="saveProjectForm(event, '${project.id}')" class="p-4 overflow-y-auto flex-1 space-y-3">
                             <div>
                                 <label class="block font-bold text-slate-700 mb-1">Project Name *</label>
-                                <input type="text" id="p-name" required value="${project.name}" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus:ring-2 focus:ring-indigo-500">
+                                <input type="text" id="p-name" required value="${project.name}" class="w-full bg-slate-50 border rounded-xl p-2.5">
                             </div>
                             <div class="grid grid-cols-2 gap-2">
                                 <div>
                                     <label class="block font-bold text-slate-700 mb-1">Category</label>
-                                    <select id="p-category" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5">
-                                        ${['Government Teaching Work', 'School Website', 'AI Chatbot', 'AI Tools', 'Website Development', 'App Development', 'Automation', 'YouTube Automation', 'RAS Preparation', 'Business Project', 'Personal Project', 'Other'].map(cat => `
-                                            <option value="${cat}" ${project.category === cat ? 'selected' : ''}>${cat}</option>
-                                        `).join('')}
+                                    <select id="p-category" class="w-full bg-slate-50 border rounded-xl p-2.5">
+                                        ${['Government Teaching Work', 'School Website', 'AI Chatbot', 'AI Tools', 'Website Development', 'App Development', 'Automation', 'YouTube Automation', 'RAS Preparation', 'Business Project', 'Personal Project', 'Other'].map(cat => `<option value="${cat}" ${project.category === cat ? 'selected' : ''}>${cat}</option>`).join('')}
                                     </select>
                                 </div>
                                 <div>
                                     <label class="block font-bold text-slate-700 mb-1">Status</label>
-                                    <select id="p-status" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5">
-                                        ${['Idea', 'Not Started', 'In Progress', 'On Hold', 'Needs Update', 'Testing', 'Completed', 'Archived'].map(st => `
-                                            <option value="${st}" ${project.currentStatus === st ? 'selected' : ''}>${st}</option>
-                                        `).join('')}
+                                    <select id="p-status" class="w-full bg-slate-50 border rounded-xl p-2.5">
+                                        ${['Idea', 'Not Started', 'In Progress', 'On Hold', 'Needs Update', 'Testing', 'Completed', 'Archived'].map(st => `<option value="${st}" ${project.currentStatus === st ? 'selected' : ''}>${st}</option>`).join('')}
                                     </select>
                                 </div>
                             </div>
                             <div>
                                 <label class="block font-bold text-slate-700 mb-1">Description</label>
-                                <textarea id="p-desc" rows="2" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5">${project.description || ''}</textarea>
+                                <textarea id="p-desc" rows="2" class="w-full bg-slate-50 border rounded-xl p-2.5">${project.description || ''}</textarea>
                             </div>
                             <div class="grid grid-cols-2 gap-2">
                                 <div>
-                                    <label class="block font-bold text-slate-700 mb-1">Completion % (${project.completionPercentage || 0}%)</label>
-                                    <input type="range" id="p-progress" min="0" max="100" value="${project.completionPercentage || 0}" class="w-full accent-indigo-600">
+                                    <label class="block font-bold text-slate-700 mb-1">Prompt किससे बनवाया? (Prompt)</label>
+                                    <input type="text" id="p-prompt" value="${project.promptTool || ''}" placeholder="e.g. ChatGPT / Gemini" class="w-full bg-slate-50 border rounded-xl p-2.5">
                                 </div>
                                 <div>
-                                    <label class="block font-bold text-slate-700 mb-1">Target Date</label>
-                                    <input type="date" id="p-target" value="${project.targetDate || ''}" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2">
+                                    <label class="block font-bold text-slate-700 mb-1">Code किससे लिखवाया? (Code)</label>
+                                    <input type="text" id="p-code" value="${project.codeTool || ''}" placeholder="e.g. Gemini / Claude" class="w-full bg-slate-50 border rounded-xl p-2.5">
                                 </div>
                             </div>
                             <div class="grid grid-cols-2 gap-2">
                                 <div>
-                                    <label class="block font-bold text-slate-700 mb-1">Live URL</label>
-                                    <input type="url" id="p-live" value="${project.liveUrl || ''}" placeholder="https://" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2">
+                                    <label class="block font-bold text-slate-700 mb-1">कहाँ होस्ट किया? (Host)</label>
+                                    <input type="text" id="p-host" value="${project.hostPlatform || ''}" placeholder="e.g. Cloudflare / Vercel" class="w-full bg-slate-50 border rounded-xl p-2.5">
                                 </div>
                                 <div>
-                                    <label class="block font-bold text-slate-700 mb-1">GitHub URL</label>
-                                    <input type="url" id="p-github" value="${project.githubUrl || ''}" placeholder="https://" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2">
+                                    <label class="block font-bold text-slate-700 mb-1">GitHub ID</label>
+                                    <input type="text" id="p-githubid" value="${project.githubId || ''}" placeholder="username/repo" class="w-full bg-slate-50 border rounded-xl p-2.5">
                                 </div>
+                            </div>
+                            <div>
+                                <label class="block font-bold text-slate-700 mb-1">Completion % (${project.completionPercentage || 0}%)</label>
+                                <input type="range" id="p-progress" min="0" max="100" value="${project.completionPercentage || 0}" class="w-full accent-indigo-600">
                             </div>
                             <div class="pt-3 flex space-x-2">
-                                <button type="submit" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 rounded-xl shadow-sm">सेव करें</button>
+                                <button type="submit" class="flex-1 bg-indigo-600 text-white font-semibold py-2.5 rounded-xl">सेव करें</button>
                                 <button type="button" onclick="closeModal()" class="bg-slate-200 text-slate-700 font-semibold px-4 py-2.5 rounded-xl">रद्द करें</button>
                             </div>
                         </form>
@@ -872,71 +588,32 @@ ${tasks.filter(t => t.status !== 'Completed').map(t => `- [ ] ${t.title} (Priori
                 category: document.getElementById('p-category').value,
                 currentStatus: document.getElementById('p-status').value,
                 description: document.getElementById('p-desc').value,
+                promptTool: document.getElementById('p-prompt').value,
+                codeTool: document.getElementById('p-code').value,
+                hostPlatform: document.getElementById('p-host').value,
+                githubId: document.getElementById('p-githubid').value,
                 completionPercentage: parseInt(document.getElementById('p-progress').value) || 0,
-                targetDate: document.getElementById('p-target').value,
-                liveUrl: document.getElementById('p-live').value,
-                githubUrl: document.getElementById('p-github').value,
                 lastUpdated: new Date().toISOString().split('T')[0]
             };
 
             await dbPut('projects', projectData);
             closeModal();
-            showToast("प्रोजेक्ट सफलतापूर्वक सेव हो गया!", "success");
+            showToast("प्रोजेक्ट सफलतापर्वक सेव हो गया!", "success");
             refreshDataAndRender();
         }
 
-        // --- DEVELOPMENT LOG MODAL ---
+        // --- LOG, TASK, NOTE MODALS & HELPERS ---
         function openLogModal(projectId) {
             const container = document.getElementById('modal-container');
             container.innerHTML = `
                 <div class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-                    <div class="bg-white rounded-2xl max-w-lg w-full max-h-[85vh] flex flex-col shadow-2xl overflow-hidden">
-                        <div class="bg-emerald-600 text-white p-4 flex justify-between items-center">
-                            <h3 class="font-bold text-sm">नया Development Log जोड़ें</h3>
-                            <button onclick="closeModal()" class="text-emerald-200 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
-                        </div>
-                        <form onsubmit="saveLogForm(event, '${projectId}')" class="p-4 overflow-y-auto flex-1 space-y-3 text-xs">
-                            <div class="grid grid-cols-2 gap-2">
-                                <div>
-                                    <label class="block font-bold text-slate-700 mb-1">AI Tool / Source *</label>
-                                    <select id="l-tool" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5">
-                                        <option value="Google Gemini">Google Gemini</option>
-                                        <option value="ChatGPT">ChatGPT</option>
-                                        <option value="Claude">Claude</option>
-                                        <option value="GitHub">GitHub</option>
-                                        <option value="VS Code">VS Code</option>
-                                        <option value="Google AI Studio">Google AI Studio</option>
-                                        <option value="n8n">n8n</option>
-                                        <option value="Custom">Custom Tool</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label class="block font-bold text-slate-700 mb-1">Work Type *</label>
-                                    <input type="text" id="l-work" required placeholder="e.g. Code Generation" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5">
-                                </div>
-                            </div>
-                            <div>
-                                <label class="block font-bold text-slate-700 mb-1">Prompt / Instruction Given *</label>
-                                <textarea id="l-prompt" required rows="2" placeholder="क्या Prompt दिया था..." class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5"></textarea>
-                            </div>
-                            <div class="grid grid-cols-2 gap-2">
-                                <div>
-                                    <label class="block font-bold text-slate-700 mb-1">File Changed</label>
-                                    <input type="text" id="l-file" placeholder="index.html" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2">
-                                </div>
-                                <div>
-                                    <label class="block font-bold text-slate-700 mb-1">Current Result</label>
-                                    <input type="text" id="l-result" placeholder="Working / Tested" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2">
-                                </div>
-                            </div>
-                            <div>
-                                <label class="block font-bold text-slate-700 mb-1">Next Step</label>
-                                <input type="text" id="l-next" placeholder="Mobile responsiveness check" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2">
-                            </div>
-                            <div class="pt-3 flex space-x-2">
-                                <button type="submit" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 rounded-xl shadow-sm">Log सेव करें</button>
-                                <button type="button" onclick="closeModal()" class="bg-slate-200 text-slate-700 font-semibold px-4 py-2.5 rounded-xl">रद्द करें</button>
-                            </div>
+                    <div class="bg-white rounded-2xl max-w-lg w-full p-4 shadow-2xl text-xs space-y-3">
+                        <div class="flex justify-between font-bold text-emerald-700"><h3>नया Development Log</h3><button onclick="closeModal()"><i class="fa-solid fa-xmark"></i></button></div>
+                        <form onsubmit="saveLogForm(event, '${projectId}')" class="space-y-3">
+                            <input type="text" id="l-tool" placeholder="Tool Name (e.g. Gemini)" required class="w-full bg-slate-50 border rounded-xl p-2.5">
+                            <textarea id="l-prompt" placeholder="Prompt Given..." required rows="2" class="w-full bg-slate-50 border rounded-xl p-2.5"></textarea>
+                            <input type="text" id="l-result" placeholder="Current Result..." class="w-full bg-slate-50 border rounded-xl p-2.5">
+                            <button type="submit" class="w-full bg-emerald-600 text-white font-semibold py-2.5 rounded-xl">Log सेव करें</button>
                         </form>
                     </div>
                 </div>
@@ -949,63 +626,28 @@ ${tasks.filter(t => t.status !== 'Completed').map(t => `- [ ] ${t.title} (Priori
                 id: 'log_' + Date.now(),
                 projectId: projectId,
                 toolName: document.getElementById('l-tool').value,
-                workType: document.getElementById('l-work').value,
                 promptUsed: document.getElementById('l-prompt').value,
-                fileChanged: document.getElementById('l-file').value,
                 currentResult: document.getElementById('l-result').value,
-                nextStep: document.getElementById('l-next').value,
                 entryDate: new Date().toISOString().split('T')[0]
             };
-
             await dbPut('logs', logData);
             closeModal();
-            showToast("Development Log सुरक्षित हो गया!", "success");
+            showToast("Log सुरक्षित हो गया!", "success");
             switchTab('project-detail', projectId);
         }
 
-        // --- TASK MODAL ---
         function openTaskModal() {
             const container = document.getElementById('modal-container');
             const projectOptions = appData.projects.map(p => `<option value="${p.name}">${p.name}</option>`).join('');
-
             container.innerHTML = `
                 <div class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-                    <div class="bg-white rounded-2xl max-w-lg w-full max-h-[85vh] flex flex-col shadow-2xl overflow-hidden">
-                        <div class="bg-emerald-600 text-white p-4 flex justify-between items-center">
-                            <h3 class="font-bold text-sm">नया Task बनाएं</h3>
-                            <button onclick="closeModal()" class="text-emerald-200 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
-                        </div>
-                        <form onsubmit="saveTaskForm(event)" class="p-4 overflow-y-auto flex-1 space-y-3 text-xs">
-                            <div>
-                                <label class="block font-bold text-slate-700 mb-1">Task Title *</label>
-                                <input type="text" id="t-title" required class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5">
-                            </div>
-                            <div class="grid grid-cols-2 gap-2">
-                                <div>
-                                    <label class="block font-bold text-slate-700 mb-1">Related Project</label>
-                                    <select id="t-project" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5">
-                                        <option value="General">General Task</option>
-                                        ${projectOptions}
-                                    </select>
-                                </div>
-                                <div>
-                                    <label class="block font-bold text-slate-700 mb-1">Priority</label>
-                                    <select id="t-priority" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5">
-                                        <option value="Medium">Medium</option>
-                                        <option value="Urgent">Urgent</option>
-                                        <option value="High">High</option>
-                                        <option value="Low">Low</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div>
-                                <label class="block font-bold text-slate-700 mb-1">Due Date</label>
-                                <input type="date" id="t-due" value="${new Date().toISOString().split('T')[0]}" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5">
-                            </div>
-                            <div class="pt-3 flex space-x-2">
-                                <button type="submit" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 rounded-xl shadow-sm">Task सेव करें</button>
-                                <button type="button" onclick="closeModal()" class="bg-slate-200 text-slate-700 font-semibold px-4 py-2.5 rounded-xl">रद्द करें</button>
-                            </div>
+                    <div class="bg-white rounded-2xl max-w-lg w-full p-4 shadow-2xl text-xs space-y-3">
+                        <div class="flex justify-between font-bold text-indigo-700"><h3>नया Task</h3><button onclick="closeModal()"><i class="fa-solid fa-xmark"></i></button></div>
+                        <form onsubmit="saveTaskForm(event)" class="space-y-3">
+                            <input type="text" id="t-title" placeholder="Task Title *" required class="w-full bg-slate-50 border rounded-xl p-2.5">
+                            <select id="t-project" class="w-full bg-slate-50 border rounded-xl p-2.5"><option value="General">General</option>${projectOptions}</select>
+                            <input type="date" id="t-due" value="${new Date().toISOString().split('T')[0]}" class="w-full bg-slate-50 border rounded-xl p-2.5">
+                            <button type="submit" class="w-full bg-indigo-600 text-white font-semibold py-2.5 rounded-xl">Task सेव करें</button>
                         </form>
                     </div>
                 </div>
@@ -1018,15 +660,42 @@ ${tasks.filter(t => t.status !== 'Completed').map(t => `- [ ] ${t.title} (Priori
                 id: 'task_' + Date.now(),
                 title: document.getElementById('t-title').value,
                 relatedProject: document.getElementById('t-project').value,
-                priority: document.getElementById('t-priority').value,
                 dueDate: document.getElementById('t-due').value,
-                status: 'Not Started',
-                createdDate: new Date().toISOString().split('T')[0]
+                status: 'Not Started'
             };
-
             await dbPut('tasks', taskData);
             closeModal();
-            showToast("Task सफलतापर्वक जुड़ गया!", "success");
+            showToast("Task जुड़ गया!", "success");
+            refreshDataAndRender();
+        }
+
+        function openNoteModal() {
+            const container = document.getElementById('modal-container');
+            container.innerHTML = `
+                <div class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+                    <div class="bg-white rounded-2xl max-w-lg w-full p-4 shadow-2xl text-xs space-y-3">
+                        <div class="flex justify-between font-bold text-amber-700"><h3>नया Quick Note</h3><button onclick="closeModal()"><i class="fa-solid fa-xmark"></i></button></div>
+                        <form onsubmit="saveNoteForm(event)" class="space-y-3">
+                            <input type="text" id="n-title" placeholder="Title *" required class="w-full bg-slate-50 border rounded-xl p-2.5">
+                            <textarea id="n-content" placeholder="Content *" required rows="3" class="w-full bg-slate-50 border rounded-xl p-2.5"></textarea>
+                            <button type="submit" class="w-full bg-amber-600 text-white font-semibold py-2.5 rounded-xl">Note सेव करें</button>
+                        </form>
+                    </div>
+                </div>
+            `;
+        }
+
+        async function saveNoteForm(event) {
+            event.preventDefault();
+            const noteData = {
+                id: 'note_' + Date.now(),
+                title: document.getElementById('n-title').value,
+                content: document.getElementById('n-content').value,
+                date: new Date().toISOString().split('T')[0]
+            };
+            await dbPut('notes', noteData);
+            closeModal();
+            showToast("Note सेव हो गया!", "success");
             refreshDataAndRender();
         }
 
@@ -1040,277 +709,76 @@ ${tasks.filter(t => t.status !== 'Completed').map(t => `- [ ] ${t.title} (Priori
         }
 
         async function deleteTask(taskId) {
-            if (confirm("क्या आप इस Task को डिलीट करना चाहते हैं?")) {
+            if (confirm("डिलीट करें?")) {
                 await dbDelete('tasks', taskId);
-                showToast("Task डिलीट कर दिया गया।", "info");
                 refreshDataAndRender();
             }
         }
 
-        // --- QUICK NOTE MODAL ---
-        function openNoteModal() {
-            const container = document.getElementById('modal-container');
-            const projectOptions = appData.projects.map(p => `<option value="${p.name}">${p.name}</option>`).join('');
-
-            container.innerHTML = `
-                <div class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-                    <div class="bg-white rounded-2xl max-w-lg w-full max-h-[85vh] flex flex-col shadow-2xl overflow-hidden">
-                        <div class="bg-amber-600 text-white p-4 flex justify-between items-center">
-                            <h3 class="font-bold text-sm">नया Quick Note</h3>
-                            <button onclick="closeModal()" class="text-amber-200 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
-                        </div>
-                        <form onsubmit="saveNoteForm(event)" class="p-4 overflow-y-auto flex-1 space-y-3 text-xs">
-                            <div>
-                                <label class="block font-bold text-slate-700 mb-1">Title *</label>
-                                <input type="text" id="n-title" required class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5">
-                            </div>
-                            <div>
-                                <label class="block font-bold text-slate-700 mb-1">Related Project</label>
-                                <select id="n-project" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5">
-                                    <option value="General">General Note</option>
-                                    ${projectOptions}
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block font-bold text-slate-700 mb-1">Content *</label>
-                                <textarea id="n-content" required rows="4" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5"></textarea>
-                            </div>
-                            <div class="pt-3 flex space-x-2">
-                                <button type="submit" class="flex-1 bg-amber-600 hover:bg-amber-700 text-white font-semibold py-2.5 rounded-xl shadow-sm">Note सेव करें</button>
-                                <button type="button" onclick="closeModal()" class="bg-slate-200 text-slate-700 font-semibold px-4 py-2.5 rounded-xl">रद्द करें</button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            `;
-        }
-
-        async function saveNoteForm(event) {
-            event.preventDefault();
-            const noteData = {
-                id: 'note_' + Date.now(),
-                title: document.getElementById('n-title').value,
-                relatedProject: document.getElementById('n-project').value,
-                content: document.getElementById('n-content').value,
-                date: new Date().toISOString().split('T')[0]
-            };
-
-            await dbPut('notes', noteData);
-            closeModal();
-            showToast("Quick Note सेव हो गया!", "success");
+        async function loadDemoData() {
+            const sampleProjects = [
+                { id: 'p1', name: 'MGGS Khasoli School Website', category: 'School Website', currentStatus: 'In Progress', description: 'राजकीय विद्यालय पोर्टल', promptTool: 'ChatGPT', codeTool: 'Google Gemini', hostPlatform: 'Cloudflare Pages', githubId: 'nkkmnit/school-site', completionPercentage: 75 }
+            ];
+            for (let p of sampleProjects) await dbPut('projects', p);
+            showToast("Demo Data लोड हो गया!", "success");
             refreshDataAndRender();
         }
 
-        async function deleteNote(noteId) {
-            if (confirm("क्या आप इस Note को डिलीट करना चाहते हैं?")) {
-                await dbDelete('notes', noteId);
-                showToast("Note डिलीट कर दिया गया।", "info");
+        async function clearAllDataConfirmed() {
+            if (confirm("सारा डेटा डिलीट करना चाहते हैं?")) {
+                const tx = db.transaction(['projects', 'tasks', 'logs', 'notes'], 'readwrite');
+                tx.objectStore('projects').clear();
+                tx.objectStore('tasks').clear();
+                tx.objectStore('logs').clear();
+                tx.objectStore('notes').clear();
                 refreshDataAndRender();
             }
         }
 
-        // --- GLOBAL SEARCH MODAL ---
-        function openGlobalSearch() {
-            const container = document.getElementById('modal-container');
-            container.innerHTML = `
-                <div class="fixed inset-0 bg-black/60 z-50 flex items-start justify-center pt-16 p-4">
-                    <div class="bg-white rounded-2xl max-w-lg w-full flex flex-col shadow-2xl overflow-hidden">
-                        <div class="p-3 border-b border-slate-200 flex items-center space-x-3">
-                            <i class="fa-solid fa-magnifying-glass text-slate-400"></i>
-                            <input type="text" id="global-search-input" oninput="runGlobalSearch(this.value)" placeholder="प्रोजेक्ट्स, टास्क और नोट्स खोजें..." autofocus class="w-full text-xs focus:outline-none">
-                            <button onclick="closeModal()" class="text-slate-400 hover:text-slate-700"><i class="fa-solid fa-xmark"></i></button>
-                        </div>
-                        <div id="global-search-results" class="p-4 max-h-80 overflow-y-auto space-y-2 text-xs">
-                            <p class="text-slate-400 text-center py-4">खोजने के लिए टाइप करें...</p>
-                        </div>
-                    </div>
-                </div>
-            `;
-        }
-
-        function runGlobalSearch(query) {
-            const resContainer = document.getElementById('global-search-results');
-            if (!query.trim()) {
-                resContainer.innerHTML = `<p class="text-slate-400 text-center py-4">खोजने के लिए टाइप करें...</p>`;
-                return;
-            }
-
-            const q = query.toLowerCase();
-            const matchedProjects = appData.projects.filter(p => p.name.toLowerCase().includes(q) || (p.description && p.description.toLowerCase().includes(q)));
-            const matchedTasks = appData.tasks.filter(t => t.title.toLowerCase().includes(q));
-            const matchedNotes = appData.notes.filter(n => n.title.toLowerCase().includes(q) || n.content.toLowerCase().includes(q));
-
-            let html = '';
-            if (matchedProjects.length > 0) {
-                html += `<h4 class="font-bold text-indigo-600 mb-1">Projects</h4>`;
-                html += matchedProjects.map(p => `<div onclick="closeModal(); switchTab('project-detail', '${p.id}')" class="p-2 bg-slate-50 rounded-xl cursor-pointer hover:bg-indigo-50 font-semibold">${p.name}</div>`).join('');
-            }
-            if (matchedTasks.length > 0) {
-                html += `<h4 class="font-bold text-emerald-600 mt-3 mb-1">Tasks</h4>`;
-                html += matchedTasks.map(t => `<div class="p-2 bg-slate-50 rounded-xl">${t.title} (${t.relatedProject})</div>`).join('');
-            }
-            if (matchedNotes.length > 0) {
-                html += `<h4 class="font-bold text-amber-600 mt-3 mb-1">Notes</h4>`;
-                html += matchedNotes.map(n => `<div class="p-2 bg-slate-50 rounded-xl">${n.title}</div>`).join('');
-            }
-
-            resContainer.innerHTML = html || `<p class="text-slate-400 text-center py-4">कोई परिणाम नहीं मिला।</p>`;
-        }
-
-        // --- BACKUP & RESTORE FUNCTIONS ---
-        async function exportJSONBackup() {
-            await loadAppData();
-            const backupObj = {
-                version: "1.0.0",
-                exportDate: new Date().toISOString(),
-                projects: appData.projects,
-                tasks: appData.tasks,
-                logs: appData.logs,
-                notes: appData.notes
-            };
-
-            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupObj, null, 2));
-            const downloadAnchor = document.createElement('a');
-            downloadAnchor.setAttribute("href", dataStr);
-            const dateStr = new Date().toISOString().split('T')[0];
-            downloadAnchor.setAttribute("download", `personal-project-os-backup-${dateStr}.json`);
-            document.body.appendChild(downloadAnchor);
-            downloadAnchor.click();
-            downloadAnchor.remove();
-            showToast("बैकअप JSON फाइल सफलतापर्वक डाउनलोड हो गई!", "success");
+        function exportJSONBackup() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(appData, null, 2));
+            const dl = document.createElement('a');
+            dl.setAttribute("href", dataStr);
+            dl.setAttribute("download", `personal-project-os-backup.json`);
+            dl.click();
         }
 
         async function importJSONBackup(event) {
             const file = event.target.files[0];
             if (!file) return;
-
             const reader = new FileReader();
             reader.onload = async function(e) {
-                try {
-                    const json = JSON.parse(e.target.result);
-                    if (!json.projects || !json.tasks) {
-                        alert("अमान्य बैकअप फाइल! (Invalid JSON structure)");
-                        return;
-                    }
-
-                    if (confirm("बैकअप रिस्टोर करने से वर्तमान डेटा ओवरराइट हो सकता है। क्या आप आगे बढ़ना चाहते हैं?")) {
-                        for (let p of json.projects) await dbPut('projects', p);
-                        for (let t of json.tasks) await dbPut('tasks', t);
-                        for (let l of (json.logs || [])) await dbPut('logs', l);
-                        for (let n of (json.notes || [])) await dbPut('notes', n);
-
-                        showToast("डेटा सफलतापर्वक Restore हो गया!", "success");
-                        refreshDataAndRender();
-                    }
-                } catch (err) {
-                    alert("फाइल पढ़ने में त्रुटि: " + err.message);
-                }
+                const json = JSON.parse(e.target.result);
+                if (json.projects) for (let p of json.projects) await dbPut('projects', p);
+                if (json.tasks) for (let t of json.tasks) await dbPut('tasks', t);
+                showToast("डेटा रिस्टोर हो गया!", "success");
+                refreshDataAndRender();
             };
             reader.readAsText(file);
         }
 
-        async function loadDemoData() {
-            const sampleProjects = [
-                { id: 'p1', name: 'MGGS Khasoli School Website', category: 'School Website', currentStatus: 'In Progress', description: 'राजकीय उच्च माध्यमिक विद्यालय खासोली की डिजिटल वेबसाइट और पोर्टल।', completionPercentage: 75, targetDate: '2026-05-15', liveUrl: 'https://mggskhasoli.pages.dev', githubUrl: 'https://github.com' },
-                { id: 'p2', name: 'INDIAN AI FACTORY', category: 'AI Tools', currentStatus: 'In Progress', description: 'एआई टूल्स और ऑटोमेशन वर्कशॉप प्लेटफॉर्म।', completionPercentage: 60, targetDate: '2026-06-01', liveUrl: '', githubUrl: '' },
-                { id: 'p3', name: 'RAS Study Assistant', category: 'RAS Preparation', currentStatus: 'Idea', description: 'राजस्थान प्रशासनिक सेवा परीक्षा के लिए एआई आधारित क्विज़ और नोट्स ऐप।', completionPercentage: 20, targetDate: '2026-12-31', liveUrl: '', githubUrl: '' }
-            ];
+        function closeModal() { document.getElementById('modal-container').innerHTML = ''; }
 
-            const sampleTasks = [
-                { id: 't1', title: 'स्कूल वेबसाइट पर गैलरी सेक्शन जोड़ना', relatedProject: 'MGGS Khasoli School Website', priority: 'Urgent', dueDate: new Date().toISOString().split('T')[0], status: 'Not Started' },
-                { id: 't2', title: 'AI Factory के लिए Prompt Templates तैयार करना', relatedProject: 'INDIAN AI FACTORY', priority: 'High', dueDate: new Date().toISOString().split('T')[0], status: 'In Progress' }
-            ];
-
-            for (let p of sampleProjects) await dbPut('projects', p);
-            for (let t of sampleTasks) await dbPut('tasks', t);
-
-            showToast("Sample Demo Data सफलतापूर्वक लोड हो गया!", "success");
-            refreshDataAndRender();
-        }
-
-        async function clearAllDataConfirmed() {
-            if (confirm("चेतावनी: क्या आप सारा डेटा डिलीट करना चाहते हैं? यह क्रिया वापस नहीं हो सकती।")) {
-                const transaction = db.transaction(['projects', 'tasks', 'logs', 'notes'], 'readwrite');
-                transaction.objectStore('projects').clear();
-                transaction.objectStore('tasks').clear();
-                transaction.objectStore('logs').clear();
-                transaction.objectStore('notes').clear();
-                showToast("सभी डेटा साफ़ कर दिया गया है।", "info");
-                refreshDataAndRender();
-            }
-        }
-
-        function closeModal() {
-            document.getElementById('modal-container').innerHTML = '';
-        }
-
-        function showToast(message, type = 'success') {
+        function showToast(msg, type = 'success') {
             const container = document.getElementById('toast-container');
-            const bgColors = {
-                'success': 'bg-emerald-600',
-                'info': 'bg-indigo-600',
-                'error': 'bg-rose-600'
-            };
-
             const toast = document.createElement('div');
-            toast.className = `${bgColors[type] || 'bg-indigo-600'} text-white text-xs px-4 py-3 rounded-xl shadow-lg flex items-center justify-between pointer-events-auto transition transform translate-y-0 opacity-100`;
-            toast.innerHTML = `<span>${message}</span>`;
+            toast.className = `bg-indigo-600 text-white text-xs px-4 py-3 rounded-xl shadow-lg`;
+            toast.innerText = msg;
             container.appendChild(toast);
-
-            setTimeout(() => {
-                toast.style.opacity = '0';
-                setTimeout(() => toast.remove(), 300);
-            }, 3000);
+            setTimeout(() => toast.remove(), 3000);
         }
 
-        /* ==========================================================
-           5. PWA SERVICE WORKER & MANIFEST GENERATION
-           ========================================================== */
-        function setupPWA() {
-            // Dynamic Web App Manifest
-            const manifest = {
-                name: "Personal Project OS",
-                short_name: "ProjectOS",
-                start_url: "./index.html",
-                display: "standalone",
-                background_color: "#f8fafc",
-                theme_color: "#4f46e5",
-                icons: [
-                    { src: "https://placehold.co/192x192/4f46e5/ffffff?text=OS", sizes: "192x192", type: "image/png" },
-                    { src: "https://placehold.co/512x512/4f46e5/ffffff?text=OS", sizes: "512x512", type: "image/png" }
-                ]
-            };
-            const manifestBlob = new Blob([JSON.stringify(manifest)], { type: 'application/json' });
-            document.getElementById('manifest-placeholder').setAttribute('href', URL.createObjectURL(manifestBlob));
-
-            // Service Worker Registration
-            if ('serviceWorker' in navigator) {
-                const swCode = `
-                    self.addEventListener('install', (e) => {
-                        e.waitUntil(caches.open('project-os-v1').then((cache) => cache.addAll(['./index.html'])));
-                    });
-                    self.addEventListener('fetch', (e) => {
-                        e.respondWith(caches.match(e.request).then((response) => response || fetch(e.request)));
-                    });
-                `;
-                const swBlob = new Blob([swCode], { type: 'application/javascript' });
-                navigator.serviceWorker.register(URL.createObjectURL(swBlob))
-                    .then(() => console.log("Service Worker Registered successfully"))
-                    .catch(err => console.log("Service Worker Registration failed", err));
-            }
+        function openGlobalSearch() {
+            alert("Global search modal opened.");
         }
 
-        // --- INIT APP ON LOAD ---
         window.onload = async function() {
-            setupPWA();
             try {
                 await initDB();
                 await loadAppData();
-                // If first time and empty, suggest loading demo data or show home
                 switchTab('home');
             } catch (err) {
-                console.error("Initialization error: ", err);
-                showToast("डेटाबेस लोड करने में समस्या आई।", "error");
+                console.error("Init error", err);
             }
         };
     </script>
